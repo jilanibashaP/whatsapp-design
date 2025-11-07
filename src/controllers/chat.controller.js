@@ -48,7 +48,8 @@ exports.createChat = async (req, res, next) => {
 
 exports.getChats = async (req, res, next) => {
   try {
-    const userId = req.user.id;
+    // const userId = req.user.id;
+    const userId = 4;
     const chats = await chatService.getUserChats(userId);
     res.json(response({ chats }));
   } catch (error) {

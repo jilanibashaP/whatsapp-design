@@ -65,16 +65,28 @@ const createOrGetPrivateChat = async (userId, otherUserId) => {
   return chat;
 };
 
+
+
+// getUserChats retrieves all chats (both private and group) that a specific user is a member of.
 const getUserChats = async (userId) => {
+
   return db.Chat.findAll({
-    include: [{
-      model: db.ChatMember,
-      where: { user_id: userId }
-    }, {
-      model: db.User,
-      as: 'Users',
-      attributes: ['id', 'name', 'profile_picture']
-    }],
+    include: [
+      {
+        model: db.ChatMember,
+        where: { user_id: userId },
+        attributes: [] // Exclude from results - only used for filtering
+      },
+      {
+        model: db.User,
+        as: 'Users',
+        attributes: ['id', 'name', 'profile_pic'],
+        through: {
+          // Include membership details for ALL members
+          attributes: ['role', 'joined_at']
+        }
+      }
+    ],
     order: [['created_at', 'DESC']]
   });
 };

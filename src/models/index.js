@@ -17,14 +17,11 @@ const db = {
   MessageStatus: MessageStatus(sequelize)
 };
 
-// Associations (basic)
-db.Chat.hasMany(db.Message, { foreignKey: 'chatId' });
-db.Message.belongsTo(db.Chat, { foreignKey: 'chatId' });
-
-db.User.hasMany(db.Message, { foreignKey: 'senderId' });
-db.Message.belongsTo(db.User, { foreignKey: 'senderId' });
-
-db.Chat.belongsToMany(db.User, { through: db.ChatMember, foreignKey: 'chatId', otherKey: 'userId' });
-db.User.belongsToMany(db.Chat, { through: db.ChatMember, foreignKey: 'userId', otherKey: 'chatId' });
+// Call associate methods for all models
+Object.keys(db).forEach(modelName => {
+  if (db[modelName].associate) {
+    db[modelName].associate(db);
+  }
+});
 
 module.exports = db;

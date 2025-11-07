@@ -7,12 +7,13 @@ module.exports = (sequelize) => {
       autoIncrement: true,
       primaryKey: true
     },
-    name: { type: DataTypes.STRING, allowNull: false },
-    phone_number: { type: DataTypes.STRING, allowNull: false, unique: true },
-    profile_pic: { type: DataTypes.TEXT },
-    status: { type: DataTypes.STRING },
-    created_at: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
-    email: { type: DataTypes.STRING }
+  name: { type: DataTypes.STRING, allowNull: false },
+  phone_number: { type: DataTypes.STRING, allowNull: false, unique: true },
+  // password: { type: DataTypes.STRING, allowNull: false },
+  profile_pic: { type: DataTypes.TEXT },
+  status: { type: DataTypes.STRING },
+  created_at: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
+  email: { type: DataTypes.STRING }
   }, {
     tableName: 'users',
     timestamps: false

@@ -10,6 +10,7 @@ module.exports = (sequelize) => {
     is_group: { type: DataTypes.BOOLEAN, defaultValue: false },
     group_name: { type: DataTypes.STRING },
     group_icon: { type: DataTypes.TEXT },
+    group_description: { type: DataTypes.TEXT },
     created_by: { type: DataTypes.INTEGER },
     created_at: { type: DataTypes.DATE, defaultValue: DataTypes.NOW }
   }, {

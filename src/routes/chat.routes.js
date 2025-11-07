@@ -4,7 +4,7 @@ const auth = require('../middlewares/auth.middleware');
 
 const router = express.Router();
 
-router.use(auth);
+// router.use(auth);
 router.post('/', controller.createChat);
 router.get('/', controller.getChats);
 

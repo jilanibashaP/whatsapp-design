@@ -2,17 +2,23 @@ const { DataTypes } = require('sequelize');
 
 module.exports = (sequelize) => {
   const MessageStatus = sequelize.define('MessageStatus', {
-    id: {
-      type: DataTypes.UUID,
-      defaultValue: DataTypes.UUIDV4,
-      primaryKey: true
+    message_id: { type: DataTypes.INTEGER, allowNull: false, primaryKey: true },
+    user_id: { type: DataTypes.INTEGER, allowNull: false, primaryKey: true },
+    status: {
+      type: DataTypes.ENUM('sent', 'delivered', 'read'),
+      allowNull: false,
+      defaultValue: 'sent'
     },
-    messageId: { type: DataTypes.UUID, allowNull: false },
-    userId: { type: DataTypes.UUID, allowNull: false },
-    status: { type: DataTypes.STRING, allowNull: false } // e.g., sent, delivered, read
+    updated_at: { type: DataTypes.DATE, defaultValue: DataTypes.NOW }
   }, {
-    tableName: 'message_statuses'
+    tableName: 'message_statuses',
+    timestamps: false
   });
+
+  MessageStatus.associate = (models) => {
+    MessageStatus.belongsTo(models.Message, { foreignKey: 'message_id' });
+    MessageStatus.belongsTo(models.User, { foreignKey: 'user_id' });
+  };
 
   return MessageStatus;
 };

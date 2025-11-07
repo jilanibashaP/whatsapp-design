@@ -1,0 +1,25 @@
+{
+  "name": "whatsapp-design",
+  "version": "1.0.0",
+  "description": "whatsapp design",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jilanibashaP/whatsapp-design.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/jilanibashaP/whatsapp-design/issues"
+  },
+  "homepage": "https://github.com/jilanibashaP/whatsapp-design#readme",
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "socket.io": "^4.8.1"
+  }
+}

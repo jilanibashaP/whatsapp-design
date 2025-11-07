@@ -44,6 +44,8 @@ S3/Local Storage (Media files)
 
 ### Users Table
 
+Stores all registered users’ profile information.
+
 ```sql
 CREATE TABLE users (
     user_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -59,6 +61,7 @@ CREATE TABLE users (
 ```
 
 ### Chats Table
+Represents a conversation — either 1-on-1 (individual) or group.
 
 ```sql
 CREATE TABLE chats (
@@ -72,6 +75,13 @@ CREATE TABLE chats (
 ```
 
 ### Chat Members Table
+
+Links users ↔ chats, representing who is part of which chat.
+
+Why it’s needed:
+
+A chat can have multiple users (especially for groups).
+Even 1-on-1 chats use this to track participants and “last read” info.
 
 ```sql
 CREATE TABLE chat_members (
@@ -680,3 +690,133 @@ psql -U chatapp_user -d chatapp -f schema.sql
 8. ✅ Add group chat support
 
 **You have everything you need to build a production-ready messaging app for 5K users!** 🚀
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# 📱 WhatsApp Chatting App – Database Schema Design
+
+A simple relational schema design for a WhatsApp-like messaging app.
+
+---
+
+## 🧍 1. `users` Table
+Stores all user accounts.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | INT (PK) | Unique user ID |
+| `name` | VARCHAR | User’s display name |
+| `phone_number` | VARCHAR | User’s phone number |
+| `profile_pic` | TEXT | Profile picture URL |
+| `status` | VARCHAR | “Available”, “Busy”, etc. |
+| `created_at` | DATETIME | When the account was created |
+
+**Example:**
+
+| id | name | phone_number | status |
+|----|------|---------------|--------|
+| 1 | Alice | +911234567890 | Busy |
+| 2 | Bob | +919876543210 | Available |
+
+---
+
+## 💬 2. `chats` Table
+Represents 1-on-1 or group chat.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | INT (PK) | Unique chat ID |
+| `is_group` | BOOLEAN | `false` for private chat, `true` for group |
+| `group_name` | VARCHAR | Only used if group chat |
+| `group_icon` | TEXT | Optional group icon |
+| `created_by` | INT (FK → users.id) | Who created the chat |
+| `created_at` | DATETIME | When chat was created |
+
+**Example:**
+
+| id | is_group | group_name | created_by |
+|----|-----------|-------------|-------------|
+| 1 | false | NULL | NULL |
+| 2 | true | Friends Group | 1 |
+
+---
+
+## 👥 3. `chat_members` Table
+Stores which users belong to which chat.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `chat_id` | INT (FK → chats.id) | Which chat |
+| `user_id` | INT (FK → users.id) | Member of the chat |
+| `role` | ENUM('admin', 'member') | Role in group |
+| `joined_at` | DATETIME | When they joined |
+
+**Example:**
+
+| chat_id | user_id | role |
+|----------|----------|------|
+| 1 | 1 | member |
+| 1 | 2 | member |
+| 2 | 1 | admin |
+| 2 | 2 | member |
+
+---
+
+## 📨 4. `messages` Table
+Stores all text/media messages.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | INT (PK) | Message ID |
+| `chat_id` | INT (FK → chats.id) | Which chat |
+| `sender_id` | INT (FK → users.id) | Who sent it |
+| `message_type` | ENUM('text', 'image', 'video', 'audio', 'file') | Type of message |
+| `content` | TEXT | Message text or file URL |
+| `reply_to` | INT (FK → messages.id, nullable) | If it’s a reply |
+| `sent_at` | DATETIME | Time sent |
+| `status` | ENUM('sent', 'delivered', 'read') | Message delivery status |
+
+**Example:**
+
+| id | chat_id | sender_id | type | content | status |
+|----|----------|------------|-------|----------|---------|
+| 1 | 1 | 1 | text | Hey Bob! | delivered |
+| 2 | 1 | 2 | text | Hi Alice! | read |
+
+---
+
+## ✅ 5. `message_status` (optional)
+Tracks read receipts for group messages per user.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `message_id` | INT (FK → messages.id) | Message |
+| `user_id` | INT (FK → users.id) | Receiver |
+| `status` | ENUM('sent', 'delivered', 'read') | Status for this user |
+| `updated_at` | DATETIME | When status updated |
+
+---
+
+---
+
+## 📁 Example Flow
+
+1️⃣ **Alice sends “Hi Bob!”**  
+→ Insert into `messages` with `chat_id=1`, `sender_id=1`, `content="Hi Bob!"`.
+
+2️⃣ **Bob reads it**  
+→ Update `messages.status = "read"` or update row in `message_status`.
+
+---

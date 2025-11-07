@@ -722,6 +722,7 @@ Stores all user accounts.
 | `profile_pic` | TEXT | Profile picture URL |
 | `status` | VARCHAR | “Available”, “Busy”, etc. |
 | `created_at` | DATETIME | When the account was created |
+| `email` |  VARCHAR | 
 
 **Example:**
 

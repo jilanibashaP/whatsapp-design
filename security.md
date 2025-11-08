@@ -1,0 +1,1 @@
+1) Auth in web socket. check any once can see the other persion messages

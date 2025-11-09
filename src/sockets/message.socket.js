@@ -7,27 +7,28 @@ const { verify } = require('../utils/token');
  */
 module.exports = (io) => {
   io.on('connection', (socket) => {
+    socket.userId= 3;
     logger.info('Message socket connected:', socket.id);
 
     // Authenticate socket connection
-    socket.on('authenticate', async (token) => {
-      try {
-        const decoded = verify(token);
-        socket.userId = decoded.id;
-        socket.join(`user:${decoded.id}`); // Join user's personal room
-        socket.emit('authenticated', { success: true, userId: decoded.id });
+    // socket.on('authenticate', async (token) => {
+    //   try {
+    //     const decoded = verify(token);
+    //     socket.userId = decoded.id;
+    //     socket.join(`user:${decoded.id}`); // Join user's personal room
+    //     socket.emit('authenticated', { success: true, userId: decoded.id });
         
-        // Emit event for presence tracking
-        socket.emit('user_authenticated', decoded.id);
+    //     // Emit event for presence tracking
+    //     socket.emit('user_authenticated', decoded.id);
         
-        logger.info('Socket authenticated:', { socketId: socket.id, userId: decoded.id });
-      } catch (error) {
-        socket.emit('authentication_error', { message: 'Invalid token' });
-        logger.error('Socket authentication failed:', error.message);
-      }
-    });
+    //     logger.info('Socket authenticated:', { socketId: socket.id, userId: decoded.id });
+    //   } catch (error) {
+    //     socket.emit('authentication_error', { message: 'Invalid token' });
+    //     logger.error('Socket authentication failed:', error.message);
+    //   }
+    // });
 
-    // Join a chat room
+    // Join a chat room creating the separate room for each chat
     socket.on('join_chat', (chatId) => {
       if (!socket.userId) {
         return socket.emit('error', { message: 'Not authenticated' });

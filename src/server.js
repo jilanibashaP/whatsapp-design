@@ -1,3 +1,6 @@
+// Load environment variables FIRST
+require('./config/env');
+
 const http = require('http');
 const app = require('./app');
 const { initSocket } = require('./config/socket');

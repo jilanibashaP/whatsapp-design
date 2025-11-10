@@ -23,15 +23,9 @@ function initSocket(server) {
     // Register message event handlers
     registerMessageHandlers(socket, io);
 
-    // IMPORTANT: For testing/development, userId is hardcoded to 3
-    // In production, client should send authentication token
-    // For now, auto-authenticate with hardcoded user ID
-    const userId = 12;
-    
-    // Directly call the authentication handler to mark user online
-    process.nextTick(async () => {
-      await handleUserAuthenticated(socket, io, userId);
-    });
+    // Client should authenticate by sending 'user_authenticated' event with userId
+    // Example from client: socket.emit('user_authenticated', userId)
+    logger.info('Waiting for user authentication...');
   });
 
   // Add helper functions to io instance

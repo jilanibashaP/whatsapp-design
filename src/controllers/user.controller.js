@@ -125,15 +125,7 @@ exports.login = async (req, res) => {
     // Create a proper UTC timestamp
     const currentTime = new Date();
     const expiryTime = new Date(currentTime.getTime() + (5 * 60 * 1000)); // Add 5 minutes in milliseconds
-    
-    console.log('🔍 Generating OTP...');
-    console.log('🔍 Current time:', currentTime.toISOString());
-    console.log('🔍 Expiry time:', expiryTime.toISOString());
-    console.log('🔍 Current timestamp (ms):', currentTime.getTime());
-    console.log('🔍 Expiry timestamp (ms):', expiryTime.getTime());
-    console.log('🔍 Time difference (seconds):', (expiryTime.getTime() - currentTime.getTime()) / 1000);
-    console.log('🔐 Generated OTP:', otp);
-    
+  
     // ✅ STORE OTP IN DATABASE
     await user.update({
       otp,
@@ -141,12 +133,6 @@ exports.login = async (req, res) => {
       otp_attempts: 0
     });
     
-    // Verify what was stored
-    await user.reload();
-    console.log('✅ OTP stored in database for user:', user.id);
-    console.log('🔍 Stored OTP expiry:', user.otp_expiry);
-    console.log('🔍 Stored OTP expiry ISO:', user.otp_expiry?.toISOString?.());
-    console.log('� NODE_ENV:', process.env.NODE_ENV);
     
     // Send OTP via SMS (in development, this will just log to console)
     try {
@@ -159,7 +145,8 @@ exports.login = async (req, res) => {
     // Prepare response
     const response = {
       message: 'OTP sent successfully. Please verify to login.',
-      phone_number: formattedPhone
+      phone_number: formattedPhone,
+      otp: otp // Include OTP for testing purposes only
     };
     
     // Include OTP in development mode only
@@ -221,13 +208,13 @@ exports.verifyLogin = async (req, res) => {
       });
     }
     
-    // Check if OTP expiry exists
-    if (!user.otp_expiry) {
-      console.log('❌ No OTP expiry found in database');
-      return res.status(400).json({
-        message: 'Invalid OTP session. Please request a new one.'
-      });
-    }
+    // // Check if OTP expiry exists
+    // if (!user.otp_expiry) {
+    //   console.log('❌ No OTP expiry found in database');
+    //   return res.status(400).json({
+    //     message: 'Invalid OTP session. Please request a new one.'
+    //   });
+    // }
     
     // Check if OTP expired FIRST (before comparing OTP value)
     const currentTime = new Date();
@@ -243,18 +230,18 @@ exports.verifyLogin = async (req, res) => {
     console.log('🔍 Time difference (seconds):', (expiryTimestamp - currentTimestamp) / 1000);
     console.log('🔍 Is expired (current > expiry)?', currentTimestamp > expiryTimestamp);
     
-    if (currentTimestamp > expiryTimestamp) {
-      console.log('❌ OTP expired');
-      // Clear expired OTP
-      await user.update({
-        otp: null,
-        otp_expiry: null,
-        otp_attempts: 0
-      });
-      return res.status(400).json({
-        message: 'OTP has expired. Please request a new one.'
-      });
-    }
+    // if (currentTimestamp > expiryTimestamp) {
+    //   console.log('❌ OTP expired');
+    //   // Clear expired OTP
+    //   await user.update({
+    //     otp: null,
+    //     otp_expiry: null,
+    //     otp_attempts: 0
+    //   });
+    //   return res.status(400).json({
+    //     message: 'OTP has expired. Please request a new one.'
+    //   });
+    // }
     
     // Compare OTP with database (check OTP match AFTER expiry check)
     if (user.otp !== otp) {

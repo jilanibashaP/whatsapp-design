@@ -15,21 +15,21 @@ const generateOTP = () => {
  * Send OTP via SMS using AWS SNS
  */
 const sendOTP = async (phoneNumber, otp) => {
-  try {
-    // Check SMS_MODE environment variable (or fall back to NODE_ENV)
-    const smsMode = process.env.SMS_MODE || process.env.NODE_ENV;
-    
-    // In development mode, just log the OTP instead of sending via AWS
-    if (smsMode === 'development') {
-      console.log('='.repeat(50));
-      console.log('📱 DEVELOPMENT MODE - OTP NOT SENT VIA SMS');
-      console.log(`📞 Phone: ${phoneNumber}`);
-      console.log(`🔐 OTP Code: ${otp}`);
-      console.log('='.repeat(50));
-      return { success: true, messageId: 'dev-mode-' + Date.now() };
-    }
+  // Check SMS_MODE environment variable (or fall back to NODE_ENV)
+  const smsMode = process.env.SMS_MODE || process.env.NODE_ENV;
+  
+  // In development mode, just log the OTP instead of sending via AWS
+  if (smsMode === 'development') {
+    console.log('='.repeat(50));
+    console.log('📱 DEVELOPMENT MODE - OTP NOT SENT VIA SMS');
+    console.log(`📞 Phone: ${phoneNumber}`);
+    console.log(`🔐 OTP Code: ${otp}`);
+    console.log('='.repeat(50));
+    return { success: true, messageId: 'dev-mode-' + Date.now() };
+  }
 
-    // Production mode - send via AWS SNS
+  // Production mode - send via AWS SNS
+  try {
     const params = {
       Message: `Your verification code is: ${otp}. Valid for 5 minutes.`,
       PhoneNumber: phoneNumber,

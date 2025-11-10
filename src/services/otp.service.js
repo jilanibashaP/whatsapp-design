@@ -20,13 +20,15 @@ const sendOTP = async (phoneNumber, otp) => {
   
   // In development mode, just log the OTP instead of sending via AWS
   if (smsMode === 'development') {
+    console.log('📱 [DEV MODE] OTP for', phoneNumber, ':', otp);
+    console.log('✅ OTP logged to console (development mode - not sent via SMS)');
     return { success: true, messageId: 'dev-mode-' + Date.now() };
   }
 
   // Production mode - send via AWS SNS
   try {
     const params = {
-      Message: `Your verification code is: ${otp}. Valid for 5 minutes.`,
+      Message: `Your verification code for synapse is: ${otp}. Valid for 5 minutes.`,
       PhoneNumber: phoneNumber,
       MessageAttributes: {
         'AWS.SNS.SMS.SenderID': {

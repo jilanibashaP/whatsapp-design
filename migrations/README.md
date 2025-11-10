@@ -14,7 +14,21 @@ Comprehensive migration that adds all new user attributes:
 - `otp_attempts` - Failed OTP attempt counter
 - `is_verified` - Phone verification status
 
-### 2. Individual Migrations (Legacy)
+### 2. `make_name_nullable.sql` / `make-name-nullable.js` ⭐ IMPORTANT
+Makes the `name` column nullable to allow users to register with phone number only:
+- Removes NOT NULL constraint from `name` column
+- Allows users to set their name after registration
+- **Run this migration if you get "null value in column name violates not-null constraint" error**
+
+```bash
+# Using Node.js (recommended):
+node migrations/make-name-nullable.js
+
+# Using SQL:
+psql -U your_username -d your_database -f migrations/make_name_nullable.sql
+```
+
+### 3. Individual Migrations (Legacy)
 - `otp_auth_setup.sql` - Basic OTP setup
 - `add_otp_fields_to_users.sql` - OTP fields only
 - `add_presence_fields.sql` - Presence tracking fields only

@@ -228,14 +228,8 @@ function registerMessageHandlers(socket, io) {
       }
     });
 
-    // Disconnect
-    socket.on('disconnect', (reason) => {
-      logger.info('Message socket disconnected:', {
-        socketId: socket.id,
-        userId: socket.userId,
-        reason
-      });
-    });
+    // Note: Disconnect is handled by presence.socket.js
+    // No need for duplicate disconnect handler here
 }
 
 module.exports = { registerMessageHandlers };

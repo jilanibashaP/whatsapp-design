@@ -1,13 +1,14 @@
 const express = require('express');
-const controller = require('../controllers/user.controller');
-
 const router = express.Router();
+const userController = require('../controllers/user.controller');
 
-// Registration (1 step)
-router.post('/register', controller.register);
+// Update user details
+router.put('/update', userController.updateUserDetails);
 
-// Login flow (2 steps)
-router.post('/login', controller.login);  // Step 1: Request OTP
-router.post('/verify-login', controller.verifyLogin);  // Step 2: Verify OTP & Login
+// Request login OTP
+router.post('/request-otp', userController.requestLoginOTP);
+
+// Verify login OTP
+router.post('/verify-otp', userController.verifyLoginOTP);
 
 module.exports = router;

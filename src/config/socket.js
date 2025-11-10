@@ -1,7 +1,7 @@
 const { Server } = require('socket.io');
 const { SOCKET_EVENTS } = require('../constants');
 const logger = require('../utils/logger');
-const { registerPresenceHandlers, isUserOnline, getActiveUsersCount } = require('../sockets/presence.socket');
+const { registerPresenceHandlers, isUserOnline, getActiveUsersCount, handleUserAuthenticated } = require('../sockets/presence.socket');
 const { registerMessageHandlers } = require('../sockets/message.socket');
 
 let io;
@@ -15,7 +15,6 @@ function initSocket(server) {
   });
 
   io.on('connection', (socket) => {
-    socket.userId = 3;
     logger.info('Socket connected:', socket.id);
 
     // Register presence event handlers
@@ -23,6 +22,16 @@ function initSocket(server) {
 
     // Register message event handlers
     registerMessageHandlers(socket, io);
+
+    // IMPORTANT: For testing/development, userId is hardcoded to 3
+    // In production, client should send authentication token
+    // For now, auto-authenticate with hardcoded user ID
+    const userId = 12;
+    
+    // Directly call the authentication handler to mark user online
+    process.nextTick(async () => {
+      await handleUserAuthenticated(socket, io, userId);
+    });
   });
 
   // Add helper functions to io instance

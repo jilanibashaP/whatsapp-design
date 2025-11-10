@@ -5,40 +5,48 @@ const logger = require('../utils/logger');
 const userConnections = new Map();
 
 /**
+ * Handle user authentication and mark them online
+ * Exported so it can be called directly when auto-authenticating
+ */
+const handleUserAuthenticated = async (socket, io, userId) => {
+  console.log("User authenticated for presence:", userId);
+  console.log("connections before authenticate:=====>", userConnections);
+  try {
+    socket.userId = userId;
+    
+    // Track connection
+    if (!userConnections.has(userId)) {
+      userConnections.set(userId, new Set());
+    }
+    userConnections.get(userId).add(socket.id);
+    
+    // Update status to online (is_online = true)
+    await presenceService.updateUserStatus(userId, true);
+    
+    // Notify all contacts that user is online
+    const contacts = await presenceService.getUserContacts(userId);
+    contacts.forEach(contactId => {
+      io.to(`user:${contactId}`).emit('presence_updated', {
+        user_id: userId,
+        is_online: true,
+        last_seen: new Date()
+      });
+    });
+    console.log("connections after authenticate:=====>", userConnections);
+    logger.info('User came online:', { userId });
+  } catch (error) {
+    logger.error('Error updating user presence:', error.message);
+  }
+};
+
+/**
  * Register presence event handlers on a socket
  */
 const registerPresenceHandlers = (socket, io) => {
   // When user is authenticated, mark them as online
   socket.on('user_authenticated', async (userId) => {
-      console.log("User authenticated for presence:", userId);
-      console.log("connections before authenticate:=====>", userConnections);
-      try {
-        socket.userId = userId;
-        
-        // Track connection
-        if (!userConnections.has(userId)) {
-          userConnections.set(userId, new Set());
-        }
-        userConnections.get(userId).add(socket.id);
-        
-        // Update status to online (is_online = true)
-        await presenceService.updateUserStatus(userId, true);
-        
-        // Notify all contacts that user is online
-        const contacts = await presenceService.getUserContacts(userId);
-        contacts.forEach(contactId => {
-          io.to(`user:${contactId}`).emit('presence_updated', {
-            user_id: userId,
-            is_online: true,
-            last_seen: new Date()
-          });
-        });
-        console.log("connections after authenticate:=====>", userConnections);
-        logger.info('User came online:', { userId });
-      } catch (error) {
-        logger.error('Error updating user presence:', error.message);
-      }
-    });
+    await handleUserAuthenticated(socket, io, userId);
+  });
     
     // Manual status update (toggle online/offline)
     socket.on('update_status', async (isOnline) => {
@@ -132,6 +140,7 @@ const getActiveUsersCount = () => {
 
 module.exports = {
   registerPresenceHandlers,
+  handleUserAuthenticated,
   isUserOnline,
   getActiveUsersCount
 };

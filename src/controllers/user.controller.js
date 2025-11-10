@@ -3,158 +3,81 @@ const crypto = require('crypto');
 const { User } = require('../models');
 const otpService = require('../services/otp.service');
 
-/**
- * REGISTRATION - Create User (Complete Registration)
- * ===================================================
- * User sends: phone_number, name
- * System does: Create user in DB as verified
- */
-exports.register = async (req, res) => {
+// update the users detals based on the phone number
+exports.updateUserDetails = async (req, res) => {
   try {
-    const { phone_number, name } = req.body;
-    
+    const { phone_number, name, profile_pic, about, email } = req.body;
     if (!phone_number) {
-      return res.status(400).json({
-        message: 'Phone number is required'
-      });
-    }
-
-    if (!name) {
-      return res.status(400).json({
-        message: 'Name is required for registration'
-      });
-    }
-    
-    // Format phone number (ensure it has country code)
-    const formattedPhone = phone_number.startsWith('+') ? phone_number : `+${phone_number}`;
-    
-    // Check if user already exists
-    const existingUser = await User.findOne({
-      where: { phone_number: formattedPhone }
-    });
-    
-    if (existingUser) {
-      return res.status(400).json({
-        message: 'User with this phone number already exists. Please use login instead.'
-      });
-    }
-    
-    // Create new user (verified, no OTP needed for registration)
-    const user = await User.create({
-      name,
-      phone_number: formattedPhone,
-      about: 'Hey there! I am using WhatsApp',
-      is_verified: true
-    });
-    
-    console.log('✅ New user registered with ID:', user.id);
-    
-    // Generate JWT token
-    const token = jwt.sign(
-      { id: user.id },
-      process.env.JWT_SECRET || 'your-secret-key',
-      { expiresIn: '7d' }
-    );
-    
-    // Return user data
-    const userResponse = {
-      id: user.id,
-      name: user.name,
-      phone_number: user.phone_number,
-      profile_pic: user.profile_pic,
-      about: user.about,
-      email: user.email,
-      created_at: user.created_at,
-      is_verified: user.is_verified
-    };
-    
-    res.status(201).json({
-      message: 'Registration successful',
-      user: userResponse,
-      token
-    });
+      return res.status(400).json({ message: 'Phone number is required' });
+    } 
+    const user = await User.findOne({ where: { phone_number } });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    } 
+    await user.update({ name, profile_pic, about, email });
+    res.json({ message: 'User details updated successfully', user });
   } catch (error) {
-    console.error('Registration error:', error);
-    res.status(500).json({
-      message: 'Server error during registration'
-    });
+    console.error('Error updating user details:', error);
+    res.status(500).json({ message: 'Server error' });
   }
 };
 
-/**
- * LOGIN WORKFLOW - STEP 1: Generate OTP & Store in DB
- * ====================================================
- * User sends: phone_number
- * System does: Check if user EXISTS in DB → Store OTP in DB
- */
-exports.login = async (req, res) => {
+
+exports.requestLoginOTP = async (req, res) => {
   try {
     const { phone_number } = req.body;
-    
+
     if (!phone_number) {
       return res.status(400).json({
         message: 'Phone number is required'
       });
     }
-    
+
     // Format phone number
     const formattedPhone = phone_number.startsWith('+') ? phone_number : `+${phone_number}`;
-    
+
     // ✅ CHECK IF USER EXISTS IN DATABASE
-    const user = await User.findOne({
+    let user = await User.findOne({
       where: { phone_number: formattedPhone }
     });
-    
+    // ✅ IF USER DOESN'T EXIST, CREATE A NEW USER
     if (!user) {
-      return res.status(404).json({
-        message: 'User not found. Please register first.'
-      });
+      user = await User.create({ phone_number: formattedPhone });
     }
-    
-    // // Check if user is verified
-    // if (!user.is_verified) {
-    //   return res.status(400).json({
-    //     message: 'User not verified. Please complete registration first.'
-    //   });
-    // }
-    
+
     // Generate OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    
+
     // Calculate expiry time - 5 minutes from now
-    // Create a proper UTC timestamp
     const currentTime = new Date();
-    const expiryTime = new Date(currentTime.getTime() + (5 * 60 * 1000)); // Add 5 minutes in milliseconds
-  
+    const expiryTime = new Date(currentTime.getTime() + (5 * 60 * 1000));
+
     // ✅ STORE OTP IN DATABASE
     await user.update({
       otp,
       otp_expiry: expiryTime,
       otp_attempts: 0
     });
-    
-    
-    // Send OTP via SMS (in development, this will just log to console)
+
+    console.log('✅ Login OTP generated for user:', user.id);
+
+    // Send OTP via SMS (optional - will fail in dev without AWS credentials)
     try {
       await otpService.sendOTP(formattedPhone, otp);
     } catch (error) {
-      console.error('Error sending OTP:', error);
-      // Continue anyway since OTP is stored in DB
+      console.error('⚠️  Error sending OTP via SMS (continuing anyway):', error.message);
+      // Continue anyway since OTP is stored in DB and returned in response
     }
-    
-    // Prepare response
+
+    // Prepare response - always include OTP for easy testing
     const response = {
-      message: 'OTP sent successfully. Please verify to login.',
+      message: 'OTP generated successfully. Please verify to login.',
       phone_number: formattedPhone,
-      otp: otp // Include OTP for testing purposes only
+      otp: otp  // Always include OTP in response for easy testing
     };
-    
-    // Include OTP in development mode only
-    if (process.env.NODE_ENV === 'development') {
-      response.otp = otp;
-      console.log('✅ OTP included in response (development mode)');
-    }
-    
+
+    console.log('✅ OTP included in response:', otp);
+
     res.json(response);
   } catch (error) {
     console.error('Login error:', error);
@@ -165,151 +88,113 @@ exports.login = async (req, res) => {
 };
 
 /**
- * LOGIN WORKFLOW - STEP 2: Verify OTP from DB & Generate Token
- * =============================================================
+ * LOGIN - STEP 2: Verify OTP & Generate Token
+ * ============================================
  * User sends: phone_number, otp
  * System does: FETCH OTP FROM DB → Compare OTP → Generate token
  */
-exports.verifyLogin = async (req, res) => {
+exports.verifyLoginOTP = async (req, res) => {
   try {
     const { phone_number, otp } = req.body;
-    
-    if (!phone_number || !otp) {
+
+    if (!phone_number) {
       return res.status(400).json({
-        message: 'Phone number and OTP are required'
+        message: 'Phone number is required'
       });
     }
-    
+
+    if (!otp) {
+      return res.status(400).json({
+        message: 'OTP is required'
+      });
+    }
+
     // Format phone number
     const formattedPhone = phone_number.startsWith('+') ? phone_number : `+${phone_number}`;
-    
-    // Fetch user from database
+
+    // ✅ FETCH USER FROM DATABASE
     const user = await User.findOne({
       where: { phone_number: formattedPhone }
     });
-    
+
     if (!user) {
       return res.status(404).json({
-        message: 'User not found'
+        message: 'User not found. Please register first.'
       });
     }
-    
-    console.log('🔍 Verifying OTP for user:', user.id);
-    console.log('🔍 User OTP from DB:', user.otp);
-    console.log('🔍 OTP Expiry from DB:', user.otp_expiry);
-    console.log('🔍 Current time:', new Date());
-    console.log('🔍 OTP from request:', otp);
-    
-    // Check if OTP exists
+
+    // ✅ CHECK IF OTP EXISTS
     if (!user.otp) {
-      console.log('❌ No OTP found in database');
       return res.status(400).json({
-        message: 'No OTP found. Please request a new one.'
+        message: 'No OTP found. Please request a new OTP.'
       });
     }
-    
-    // // Check if OTP expiry exists
-    // if (!user.otp_expiry) {
-    //   console.log('❌ No OTP expiry found in database');
+
+    // ✅ CHECK IF OTP HAS EXPIRED
+    // const currentTime = new Date();
+    // if (currentTime > user.otp_expiry) {
     //   return res.status(400).json({
-    //     message: 'Invalid OTP session. Please request a new one.'
+    //     message: 'OTP has expired. Please request a new OTP.'
     //   });
     // }
-    
-    // Check if OTP expired FIRST (before comparing OTP value)
-    const currentTime = new Date();
-    const expiryTime = new Date(user.otp_expiry);
-    const currentTimestamp = currentTime.getTime();
-    const expiryTimestamp = expiryTime.getTime();
-    
-    console.log('🔍 Checking OTP expiry...');
-    console.log('🔍 Current time:', currentTime.toISOString());
-    console.log('🔍 Expiry time:', expiryTime.toISOString());
-    console.log('🔍 Current timestamp (ms):', currentTimestamp);
-    console.log('🔍 Expiry timestamp (ms):', expiryTimestamp);
-    console.log('🔍 Time difference (seconds):', (expiryTimestamp - currentTimestamp) / 1000);
-    console.log('🔍 Is expired (current > expiry)?', currentTimestamp > expiryTimestamp);
-    
-    // if (currentTimestamp > expiryTimestamp) {
-    //   console.log('❌ OTP expired');
-    //   // Clear expired OTP
-    //   await user.update({
-    //     otp: null,
-    //     otp_expiry: null,
-    //     otp_attempts: 0
-    //   });
-    //   return res.status(400).json({
-    //     message: 'OTP has expired. Please request a new one.'
-    //   });
-    // }
-    
-    // Compare OTP with database (check OTP match AFTER expiry check)
+
+    // ✅ CHECK OTP ATTEMPTS
+    if (user.otp_attempts >= 3) {
+      return res.status(400).json({
+        message: 'Too many failed attempts. Please request a new OTP.'
+      });
+    }
+
+    // ✅ VERIFY OTP
     if (user.otp !== otp) {
-      console.log('❌ OTP mismatch - Expected:', user.otp, 'Received:', otp);
-      
       // Increment failed attempts
-      const newAttempts = (user.otp_attempts || 0) + 1;
-      await user.update({ otp_attempts: newAttempts });
-      
-      // Lock out after 3 failed attempts
-      if (newAttempts >= 3) {
-        console.log('❌ Too many failed attempts, clearing OTP');
-        await user.update({
-          otp: null,
-          otp_expiry: null,
-          otp_attempts: 0
-        });
-        return res.status(400).json({
-          message: 'Too many failed attempts. Please request a new OTP.'
-        });
-      }
-      
+      await user.update({
+        otp_attempts: user.otp_attempts + 1
+      });
+
       return res.status(400).json({
-        message: `Invalid OTP. ${3 - newAttempts} attempts remaining.`
+        message: 'Invalid OTP. Please try again.',
+        attemptsRemaining: 3 - (user.otp_attempts + 1)
       });
     }
-    
-    console.log('✅ OTP is valid and not expired');
-    
-    // OTP matched - Clear OTP data
+
+    // ✅ OTP IS VALID - CLEAR OTP DATA & GENERATE TOKEN
     await user.update({
       otp: null,
       otp_expiry: null,
-      otp_attempts: 0
+      otp_attempts: 0,
+      is_verified: true
     });
-    
-    console.log('✅ User logged in, ID:', user.id);
-    
-    // Generate JWT token
+
+    // ✅ GENERATE JWT TOKEN
     const token = jwt.sign(
-      { id: user.id },
+      { 
+        id: user.id, 
+        phone_number: user.phone_number 
+      },
       process.env.JWT_SECRET || 'your-secret-key',
       { expiresIn: '7d' }
     );
-    
-    // Return user data
-    const userResponse = {
-      id: user.id,
-      name: user.name,
-      phone_number: user.phone_number,
-      profile_pic: user.profile_pic,
-      about: user.about,
-      email: user.email,
-      created_at: user.created_at,
-      is_verified: user.is_verified,
-      is_online: user.is_online,
-      last_seen: user.last_seen
-    };
-    
+
+    console.log('✅ User logged in successfully:', user.id);
+
+    // ✅ SEND SUCCESS RESPONSE WITH TOKEN
     res.json({
       message: 'Login successful',
-      user: userResponse,
-      token
+      token,
+      user: {
+        id: user.id,
+        phone_number: user.phone_number,
+        name: user.name,
+        profile_pic: user.profile_pic,
+        about: user.about,
+        email: user.email
+      }
     });
   } catch (error) {
-    console.error('Verify login error:', error);
+    console.error('OTP verification error:', error);
     res.status(500).json({
-      message: 'Server error during login verification'
+      message: 'Server error during OTP verification'
     });
   }
 };

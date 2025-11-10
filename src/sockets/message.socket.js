@@ -3,14 +3,12 @@ const logger = require('../utils/logger');
 const { verify } = require('../utils/token');
 
 /**
- * Socket handler for real-time message events
+ * Register message-related socket event handlers
+ * @param {Object} socket - Socket.io socket instance
+ * @param {Object} io - Socket.io server instance
  */
-module.exports = (io) => {
-  io.on('connection', (socket) => {
-    socket.userId= 3;
-    logger.info('Message socket connected:', socket.id);
-
-    // Authenticate socket connection
+function registerMessageHandlers(socket, io) {
+  // Authenticate socket connection
     // socket.on('authenticate', async (token) => {
     //   try {
     //     const decoded = verify(token);
@@ -238,5 +236,6 @@ module.exports = (io) => {
         reason
       });
     });
-  });
-};
+}
+
+module.exports = { registerMessageHandlers };

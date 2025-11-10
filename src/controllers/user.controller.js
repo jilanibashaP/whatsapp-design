@@ -43,7 +43,7 @@ exports.register = async (req, res) => {
     const user = await User.create({
       name,
       phone_number: formattedPhone,
-      status: 'Hey there! I am using WhatsApp',
+      about: 'Hey there! I am using WhatsApp',
       is_verified: true
     });
     
@@ -62,7 +62,7 @@ exports.register = async (req, res) => {
       name: user.name,
       phone_number: user.phone_number,
       profile_pic: user.profile_pic,
-      status: user.status,
+      about: user.about,
       email: user.email,
       created_at: user.created_at,
       is_verified: user.is_verified
@@ -293,10 +293,12 @@ exports.verifyLogin = async (req, res) => {
       name: user.name,
       phone_number: user.phone_number,
       profile_pic: user.profile_pic,
-      status: user.status,
+      about: user.about,
       email: user.email,
       created_at: user.created_at,
-      is_verified: user.is_verified
+      is_verified: user.is_verified,
+      is_online: user.is_online,
+      last_seen: user.last_seen
     };
     
     res.json({

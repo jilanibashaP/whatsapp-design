@@ -3,10 +3,10 @@ const db = require('../models');
 /**
  * Update user online/offline status
  */
-const updateUserStatus = async (userId, status, lastSeen = new Date()) => {
+const updateUserStatus = async (userId, isOnline, lastSeen = new Date()) => {
   await db.User.update(
     { 
-      status: status,
+      is_online: isOnline,
       last_seen: lastSeen 
     },
     { where: { id: userId } }
@@ -53,12 +53,12 @@ const getUserContacts = async (userId) => {
 const getBulkUserStatus = async (userIds) => {
   const users = await db.User.findAll({
     where: { id: userIds },
-    attributes: ['id', 'status', 'last_seen']
+    attributes: ['id', 'is_online', 'last_seen']
   });
 
   return users.map(user => ({
     user_id: user.id,
-    status: user.status,
+    is_online: user.is_online,
     last_seen: user.last_seen
   }));
 };

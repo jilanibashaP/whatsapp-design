@@ -20,11 +20,6 @@ const sendOTP = async (phoneNumber, otp) => {
   
   // In development mode, just log the OTP instead of sending via AWS
   if (smsMode === 'development') {
-    console.log('='.repeat(50));
-    console.log('📱 DEVELOPMENT MODE - OTP NOT SENT VIA SMS');
-    console.log(`📞 Phone: ${phoneNumber}`);
-    console.log(`🔐 OTP Code: ${otp}`);
-    console.log('='.repeat(50));
     return { success: true, messageId: 'dev-mode-' + Date.now() };
   }
 

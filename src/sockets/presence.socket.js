@@ -5,13 +5,13 @@ const logger = require('../utils/logger');
 const userConnections = new Map();
 
 /**
- * Socket handler for user presence/online status
+ * Register presence event handlers on a socket
  */
-module.exports = (io) => {
-  io.on('connection', (socket) => {
-    
-    // When user is authenticated, mark them as online
-    socket.on('user_authenticated', async (userId) => {
+const registerPresenceHandlers = (socket, io) => {
+  // When user is authenticated, mark them as online
+  socket.on('user_authenticated', async (userId) => {
+      console.log("User authenticated for presence:", userId);
+      console.log("connections before authenticate:=====>", userConnections);
       try {
         socket.userId = userId;
         
@@ -21,43 +21,43 @@ module.exports = (io) => {
         }
         userConnections.get(userId).add(socket.id);
         
-        // Update status to online
-        await presenceService.updateUserStatus(userId, 'online');
+        // Update status to online (is_online = true)
+        await presenceService.updateUserStatus(userId, true);
         
         // Notify all contacts that user is online
         const contacts = await presenceService.getUserContacts(userId);
         contacts.forEach(contactId => {
           io.to(`user:${contactId}`).emit('presence_updated', {
             user_id: userId,
-            status: 'online',
+            is_online: true,
             last_seen: new Date()
           });
         });
-        
+        console.log("connections after authenticate:=====>", userConnections);
         logger.info('User came online:', { userId });
       } catch (error) {
         logger.error('Error updating user presence:', error.message);
       }
     });
     
-    // Manual status update (online, away, busy, offline)
-    socket.on('update_status', async (status) => {
+    // Manual status update (toggle online/offline)
+    socket.on('update_status', async (isOnline) => {
       try {
         if (!socket.userId) return;
         
-        await presenceService.updateUserStatus(socket.userId, status);
+        await presenceService.updateUserStatus(socket.userId, isOnline);
         
         // Notify contacts
         const contacts = await presenceService.getUserContacts(socket.userId);
         contacts.forEach(contactId => {
           io.to(`user:${contactId}`).emit('presence_updated', {
             user_id: socket.userId,
-            status: status,
+            is_online: isOnline,
             last_seen: new Date()
           });
         });
         
-        logger.info('User status updated:', { userId: socket.userId, status });
+        logger.info('User status updated:', { userId: socket.userId, isOnline });
       } catch (error) {
         logger.error('Error updating status:', error.message);
       }
@@ -83,6 +83,8 @@ module.exports = (io) => {
     // Handle disconnection
     socket.on('disconnect', async (reason) => {
       try {
+        console.log(`Socket disconnected: ${socket.id}, reason: ${reason}`);
+        console.log("connections before disconnect:=====>", userConnections);
         if (!socket.userId) return;
         
         // Remove this socket from user's connections
@@ -93,14 +95,14 @@ module.exports = (io) => {
           // If user has no more active connections, mark as offline
           if (connections.size === 0) {
             const lastSeen = new Date();
-            await presenceService.updateUserStatus(socket.userId, 'offline', lastSeen);
+            await presenceService.updateUserStatus(socket.userId, false, lastSeen);
             
             // Notify contacts
             const contacts = await presenceService.getUserContacts(socket.userId);
             contacts.forEach(contactId => {
               io.to(`user:${contactId}`).emit('presence_updated', {
                 user_id: socket.userId,
-                status: 'offline',
+                is_online: false,
                 last_seen: lastSeen
               });
             });
@@ -115,16 +117,21 @@ module.exports = (io) => {
         logger.error('Error handling disconnect:', error.message);
       }
     });
-  });
-  
-  // Helper function to check if user is online
-  io.isUserOnline = (userId) => {
-    const connections = userConnections.get(userId);
-    return connections && connections.size > 0;
-  };
-  
-  // Helper function to get active users count
-  io.getActiveUsersCount = () => {
-    return userConnections.size;
-  };
+};
+
+// Helper function to check if user is online
+const isUserOnline = (userId) => {
+  const connections = userConnections.get(userId);
+  return connections && connections.size > 0;
+};
+
+// Helper function to get active users count
+const getActiveUsersCount = () => {
+  return userConnections.size;
+};
+
+module.exports = {
+  registerPresenceHandlers,
+  isUserOnline,
+  getActiveUsersCount
 };

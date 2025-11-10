@@ -10,9 +10,12 @@ module.exports = (sequelize) => {
   name: { type: DataTypes.STRING, allowNull: false },
   phone_number: { type: DataTypes.STRING, allowNull: false, unique: true },
   profile_pic: { type: DataTypes.TEXT },
-  status: { type: DataTypes.STRING },
+  about: { type: DataTypes.STRING },
   created_at: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
   email: { type: DataTypes.STRING },
+  // Presence tracking fields
+  last_seen: { type: DataTypes.DATE, allowNull: true },
+  is_online: { type: DataTypes.BOOLEAN, defaultValue: false },
   // OTP fields for verification
   otp: { type: DataTypes.STRING, allowNull: true },
   otp_expiry: { type: DataTypes.DATE, allowNull: true },

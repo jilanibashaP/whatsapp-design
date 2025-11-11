@@ -3,6 +3,31 @@ const crypto = require('crypto');
 const { User } = require('../models');
 const otpService = require('../services/otp.service');
 
+// Get all users from the database
+exports.getAllUsers = async (req, res) => {
+  try {
+    const users = await User.findAll({
+      attributes: ['id', 'phone_number', 'name', 'profile_pic', 'about', 'email', 'is_online', 'last_seen', 'created_at'],
+      order: [['created_at', 'DESC']]
+    });
+
+    res.json({
+      success: true,
+      message: 'Users retrieved successfully',
+      data: {
+        users,
+        count: users.length
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching users'
+    });
+  }
+};
+
 // update the users detals based on the phone number
 exports.updateUserDetails = async (req, res) => {
   try {

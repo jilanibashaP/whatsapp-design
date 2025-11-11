@@ -105,6 +105,14 @@ function registerMessageHandlers(socket, io) {
               'delivered'
             );
             
+            // Notify sender that message was delivered
+            io.to(`user:${socket.userId}`).emit('message_status_updated', {
+              message_id: message.id,
+              status: 'delivered',
+              user_id: recipientUserId,
+              delivered_at: new Date()
+            });
+            
             deliveredCount++;
             logger.info(`Message ${message.id} delivered to online user ${recipientUserId}`);
           } else {
@@ -239,6 +247,14 @@ function registerMessageHandlers(socket, io) {
             user_id: socket.userId,
             chat_id
           });
+
+          // Emit event back to the user who marked message as read
+          // This helps update their own chat list
+          io.to(`user:${socket.userId}`).emit('message_read', {
+            message_id,
+            chat_id,
+            user_id: socket.userId
+          });
         }
       } catch (error) {
         logger.error('Error updating read status:', error.message);
@@ -256,12 +272,20 @@ function registerMessageHandlers(socket, io) {
           return;
         }
 
-        await messageService.bulkUpdateMessageStatus(
+        logger.info(`📖 Received bulk_mark_read: User ${socket.userId}, Chat ${chat_id}, MessageIDs: ${JSON.stringify(message_ids)}`);
+
+        const result = await messageService.bulkUpdateMessageStatus(
           socket.userId,
           chat_id,
           message_ids,
           'read'
         );
+
+        logger.info(`Bulk mark read result: Updated ${result.updated}, Created ${result.created}`);
+
+        // Check current unread count after update
+        const unreadCount = await messageService.getChatUnreadCount(socket.userId, chat_id);
+        logger.info(`📊 Unread count after bulk mark read: ${unreadCount} for user ${socket.userId} in chat ${chat_id}`);
 
         // Get unique sender IDs for these messages
         const db = require('../models');
@@ -280,6 +304,16 @@ function registerMessageHandlers(socket, io) {
             chat_id
           });
         });
+
+        // Emit event back to the user who marked messages as read
+        // This helps update their own chat list
+        io.to(`user:${socket.userId}`).emit('messages_read', {
+          chat_id,
+          message_ids,
+          user_id: socket.userId
+        });
+
+        logger.info(`User ${socket.userId} marked ${message_ids.length} messages as read in chat ${chat_id}`);
       } catch (error) {
         logger.error('Error bulk marking read:', error.message);
       }

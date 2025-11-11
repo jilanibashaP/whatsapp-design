@@ -3,13 +3,16 @@ const chatService = require('../services/chat.service');
 
 exports.createChat = async (req, res, next) => {
   try {
-    const { user_id, is_group, group_name, group_icon, members, other_user_id, group_description } = req.body;
+    const { is_group, group_name, group_icon, members, other_user_id, group_description } = req.body;
+    
+    // Get user_id from authenticated user
+    const user_id = req.user?.id;
 
     // Validate user_id is provided
     if (!user_id) {
-      return res.status(400).json(
+      return res.status(401).json(
         response({ 
-          error: 'user_id is required'
+          error: 'Unauthorized - user_id not found in token'
         }, false)
       );
     }
@@ -48,12 +51,13 @@ exports.createChat = async (req, res, next) => {
 
 exports.getChats = async (req, res, next) => {
   try {
-    const userId = req.body.user_id || req.query.user_id;
+    // Get user_id from authenticated user
+    const userId = req.user?.id;
     
     if (!userId) {
-      return res.status(400).json(
+      return res.status(401).json(
         response({
-          error: 'user_id is required'
+          error: 'Unauthorized - user_id not found in token'
         }, false)
       );
     }

@@ -116,11 +116,47 @@ const getMessages = async (userId, chatId, { limit = 50, offset = 0, before_id =
     offset: parseInt(offset)
   });
 
-  return messages.reverse(); // Return in chronological order
+  // Transform messages to include status for the requesting user
+  const transformedMessages = messages.map(msg => {
+    const msgJson = msg.toJSON();
+    
+    // If user is the sender, determine status based on recipient statuses
+    if (msgJson.sender_id === userId) {
+      // For sender: show the "worst" status among all recipients
+      const statuses = msgJson.MessageStatuses || [];
+      if (statuses.length === 0) {
+        msgJson.status = 'sent';
+      } else {
+        // Status priority: sent < delivered < read
+        const hasUndelivered = statuses.some(s => s.status === 'sent');
+        const hasUnread = statuses.some(s => s.status === 'delivered');
+        const allRead = statuses.every(s => s.status === 'read');
+        
+        if (allRead) {
+          msgJson.status = 'read';
+        } else if (hasUndelivered) {
+          msgJson.status = 'sent';
+        } else if (hasUnread) {
+          msgJson.status = 'delivered';
+        } else {
+          msgJson.status = 'sent';
+        }
+      }
+    } else {
+      // For recipient: show their own status
+      const userStatus = msgJson.MessageStatuses?.find(s => s.user_id === userId);
+      msgJson.status = userStatus?.status || 'sent';
+    }
+    
+    return msgJson;
+  });
+
+  return transformedMessages.reverse(); // Return in chronological order
 };
 
 /**
  * Update message status (delivered/read)
+ * NOTE: Never downgrade status (read -> delivered, delivered -> sent)
  */
 const updateMessageStatus = async (userId, messageId, status) => {
   const message = await db.Message.findByPk(messageId);
@@ -138,6 +174,9 @@ const updateMessageStatus = async (userId, messageId, status) => {
     throw new Error('User is not a member of this chat');
   }
 
+  // Status hierarchy: sent < delivered < read
+  const statusHierarchy = { sent: 1, delivered: 2, read: 3 };
+
   // Update message status for this user
   const [messageStatus, created] = await db.MessageStatus.findOrCreate({
     where: { message_id: messageId, user_id: userId },
@@ -145,10 +184,18 @@ const updateMessageStatus = async (userId, messageId, status) => {
   });
 
   if (!created) {
-    await messageStatus.update({
-      status,
-      updated_at: new Date()
-    });
+    // Only update if new status is higher in hierarchy (prevent downgrade)
+    const currentLevel = statusHierarchy[messageStatus.status] || 0;
+    const newLevel = statusHierarchy[status] || 0;
+    
+    if (newLevel > currentLevel) {
+      await messageStatus.update({
+        status,
+        updated_at: new Date()
+      });
+    } else {
+      console.log(`[DEBUG] Skipping status update for message ${messageId}: current=${messageStatus.status}, attempted=${status} (no downgrade)`);
+    }
   }
 
   return messageStatus;
@@ -167,18 +214,70 @@ const bulkUpdateMessageStatus = async (userId, chatId, messageIds, status) => {
     throw new Error('User is not a member of this chat');
   }
 
-  // Update all message statuses
-  const result = await db.MessageStatus.update(
-    { status, updated_at: new Date() },
-    {
-      where: {
-        message_id: { [Op.in]: messageIds },
-        user_id: userId
-      }
-    }
-  );
+  console.log(`[DEBUG] bulkUpdateMessageStatus: userId=${userId}, chatId=${chatId}, messageIds=${JSON.stringify(messageIds)}, status=${status}`);
 
-  return result;
+  // Get ALL message status entries for this user in this chat
+  const allMessageStatuses = await db.MessageStatus.findAll({
+    where: {
+      user_id: userId
+    },
+    include: [{
+      model: db.Message,
+      where: { chat_id: chatId },
+      attributes: ['id', 'sender_id']
+    }],
+    attributes: ['message_id', 'status']
+  });
+
+  console.log(`[DEBUG] Total MessageStatus entries for user ${userId} in chat ${chatId}:`, allMessageStatuses.length);
+  console.log(`[DEBUG] MessageStatus details:`, allMessageStatuses.map(ms => ({
+    message_id: ms.message_id,
+    status: ms.status
+  })));
+
+  // Get existing message status entries
+  const existingStatuses = await db.MessageStatus.findAll({
+    where: {
+      message_id: { [Op.in]: messageIds },
+      user_id: userId
+    },
+    attributes: ['message_id']
+  });
+
+  const existingMessageIds = existingStatuses.map(s => s.message_id);
+  const missingMessageIds = messageIds.filter(id => !existingMessageIds.includes(id));
+
+  console.log(`[DEBUG] Existing MessageStatus entries:`, existingMessageIds);
+  console.log(`[DEBUG] Missing MessageStatus entries:`, missingMessageIds);
+
+  // Update existing statuses
+  if (existingMessageIds.length > 0) {
+    await db.MessageStatus.update(
+      { status, updated_at: new Date() },
+      {
+        where: {
+          message_id: { [Op.in]: existingMessageIds },
+          user_id: userId
+        }
+      }
+    );
+  }
+
+  // Create missing statuses
+  if (missingMessageIds.length > 0) {
+    const newStatuses = missingMessageIds.map(messageId => ({
+      message_id: messageId,
+      user_id: userId,
+      status,
+      updated_at: new Date()
+    }));
+    await db.MessageStatus.bulkCreate(newStatuses);
+  }
+
+  return {
+    updated: existingMessageIds.length,
+    created: missingMessageIds.length
+  };
 };
 
 /**

@@ -48,9 +48,17 @@ exports.createChat = async (req, res, next) => {
 
 exports.getChats = async (req, res, next) => {
   try {
-    // const userId = req.user.id;
-    const userId = 4;
-    const chats = await chatService.getUserChats(userId);
+    const userId = req.body.user_id || req.query.user_id;
+    
+    if (!userId) {
+      return res.status(400).json(
+        response({
+          error: 'user_id is required'
+        }, false)
+      );
+    }
+
+    const chats = await chatService.getUserChats(parseInt(userId));
     res.json(response({ chats }));
   } catch (error) {
     next(error);

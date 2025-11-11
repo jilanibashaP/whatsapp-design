@@ -144,16 +144,38 @@ function registerMessageHandlers(socket, io) {
       }
     });
 
-    // Typing indicator
-    socket.on('typing', (data) => {
+    // Typing indicator - Deliver to personal rooms of chat members
+    socket.on('typing', async (data) => {
       if (!socket.userId) return;
 
       const { chat_id, is_typing } = data;
-      socket.to(`chat:${chat_id}`).emit('user_typing', {
-        chat_id,
-        user_id: socket.userId,
-        is_typing
-      });
+      
+      try {
+        const db = require('../models');
+        const { Op } = require('sequelize');
+        
+        // Get all chat members except the sender
+        const chatMembers = await db.ChatMember.findAll({
+          where: {
+            chat_id,
+            user_id: { [Op.ne]: socket.userId }
+          },
+          attributes: ['user_id']
+        });
+
+        // Deliver typing indicator to each member's personal room
+        chatMembers.forEach(member => {
+          io.to(`user:${member.user_id}`).emit('user_typing', {
+            chat_id,
+            user_id: socket.userId,
+            is_typing
+          });
+        });
+
+        logger.info(`Typing indicator sent to ${chatMembers.length} members in chat ${chat_id}`);
+      } catch (error) {
+        logger.error('Error sending typing indicator:', error.message);
+      }
     });
 
     // Message delivered

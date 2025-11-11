@@ -305,7 +305,7 @@ const getUndeliveredMessages = async (userId) => {
       },
       {
         model: db.Chat,
-        attributes: ['id', 'name', 'type']
+        attributes: ['id', 'is_group', 'group_name']
       }
     ],
     where: {

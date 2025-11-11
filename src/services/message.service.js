@@ -272,6 +272,52 @@ const searchMessages = async (userId, chatId, searchQuery) => {
   return messages;
 };
 
+/**
+ * Get all undelivered messages for a user
+ * Called when user comes online to deliver pending messages
+ */
+const getUndeliveredMessages = async (userId) => {
+  const messages = await db.Message.findAll({
+    include: [
+      {
+        model: db.MessageStatus,
+        where: {
+          user_id: userId,
+          status: 'sent' // Only undelivered messages
+        },
+        required: true
+      },
+      {
+        model: db.User,
+        as: 'User',
+        attributes: ['id', 'name', 'profile_pic']
+      },
+      {
+        model: db.Message,
+        as: 'ReplyTo',
+        attributes: ['id', 'content', 'sender_id'],
+        required: false,
+        include: [{
+          model: db.User,
+          as: 'User',
+          attributes: ['id', 'name']
+        }]
+      },
+      {
+        model: db.Chat,
+        attributes: ['id', 'name', 'type']
+      }
+    ],
+    where: {
+      sender_id: { [Op.ne]: userId } // Don't include user's own messages
+    },
+    order: [['sent_at', 'ASC']], // Deliver oldest first
+    limit: 100 // Limit to prevent overload
+  });
+
+  return messages;
+};
+
 module.exports = {
   sendMessage,
   getMessages,
@@ -280,5 +326,6 @@ module.exports = {
   deleteMessage,
   getUnreadCount,
   getChatUnreadCount,
-  searchMessages
+  searchMessages,
+  getUndeliveredMessages
 };

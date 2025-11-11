@@ -70,15 +70,70 @@ function registerMessageHandlers(socket, io) {
           message
         });
 
-        // Broadcast to all users in the chat room (except sender)
-        // This enables real-time messaging - instantly pushes the message to all connected users
-        // in this chat room via WebSocket, except the sender (who already has it)
+        // ========================================
+        // NEW: WhatsApp-like delivery - Send to all chat members via their personal rooms
+        // This works even if they haven't opened/joined the chat
+        // ========================================
+        const db = require('../models');
+        const { Op } = require('sequelize');
+        
+        // Get all chat members except sender
+        const chatMembers = await db.ChatMember.findAll({
+          where: {
+            chat_id,
+            user_id: { [Op.ne]: socket.userId }
+          },
+          attributes: ['user_id']
+        });
+
+        // Deliver message to each recipient
+        let deliveredCount = 0;
+        let queuedCount = 0;
+
+        for (const member of chatMembers) {
+          const recipientUserId = member.user_id;
+          
+          // Check if user is online using the helper function from presence
+          if (io.isUserOnline && io.isUserOnline(recipientUserId)) {
+            // User is ONLINE - deliver immediately to their personal room
+            io.to(`user:${recipientUserId}`).emit('new_message', message);
+            
+            // Update message status to 'delivered'
+            await messageService.updateMessageStatus(
+              recipientUserId,
+              message.id,
+              'delivered'
+            );
+            
+            deliveredCount++;
+            logger.info(`Message ${message.id} delivered to online user ${recipientUserId}`);
+          } else {
+            // User is OFFLINE - message stays in 'sent' status
+            // Will be delivered when user comes online (via pending message delivery)
+            queuedCount++;
+            logger.info(`User ${recipientUserId} offline. Message ${message.id} queued for later delivery.`);
+          }
+        }
+
+        // Also broadcast to chat room for backward compatibility
+        // (in case some users still use join_chat)
         socket.to(`chat:${chat_id}`).emit('new_message', message);
+
+        // Notify sender about delivery status
+        socket.emit('message_delivery_info', {
+          message_id: message.id,
+          delivered: deliveredCount,
+          queued: queuedCount,
+          total: chatMembers.length
+        });
 
         logger.info('Message sent:', {
           messageId: message.id,
           chatId: chat_id,
-          senderId: socket.userId
+          senderId: socket.userId,
+          deliveredToOnline: deliveredCount,
+          queuedForOffline: queuedCount,
+          totalRecipients: chatMembers.length
         });
       } catch (error) {
         logger.error('Error sending message:', error.message);

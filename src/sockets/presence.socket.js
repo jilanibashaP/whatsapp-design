@@ -14,6 +14,14 @@ const handleUserAuthenticated = async (socket, io, userId) => {
   try {
     socket.userId = userId;
 
+    // ========================================
+    // IMPORTANT: Join user's personal room
+    // This allows server to send messages directly to this user
+    // even if they haven't opened specific chats
+    // ========================================
+    socket.join(`user:${userId}`);
+    logger.info(`User ${userId} joined personal room: user:${userId}`);
+
     // Track connection
     if (!userConnections.has(userId)) {
       userConnections.set(userId, new Set());
@@ -22,6 +30,61 @@ const handleUserAuthenticated = async (socket, io, userId) => {
 
     // Update status to online (is_online = true)
     await presenceService.updateUserStatus(userId, true);
+
+    // ========================================
+    // NEW: Deliver pending messages
+    // When user comes online, send all queued messages
+    // ========================================
+    try {
+      const messageService = require('../services/message.service');
+      
+      // Get all undelivered messages
+      const undeliveredMessages = await messageService.getUndeliveredMessages(userId);
+      
+      if (undeliveredMessages.length > 0) {
+        logger.info(`User ${userId} has ${undeliveredMessages.length} pending messages`);
+        
+        // Deliver each message
+        for (const message of undeliveredMessages) {
+          // Emit message to the user
+          socket.emit('new_message', {
+            id: message.id,
+            chat_id: message.chat_id,
+            sender_id: message.sender_id,
+            content: message.content,
+            message_type: message.message_type,
+            sent_at: message.sent_at,
+            reply_to: message.reply_to,
+            User: message.User,
+            ReplyTo: message.ReplyTo,
+            Chat: message.Chat,
+            isPending: true // Flag to indicate this was a queued message
+          });
+          
+          // Update status to delivered
+          await messageService.updateMessageStatus(userId, message.id, 'delivered');
+          
+          // Notify sender that message was delivered
+          io.to(`user:${message.sender_id}`).emit('message_status_updated', {
+            message_id: message.id,
+            status: 'delivered',
+            user_id: userId,
+            delivered_at: new Date()
+          });
+          
+          logger.info(`Message ${message.id} delivered to user ${userId} (was queued)`);
+        }
+        
+        // Notify user about pending message delivery
+        socket.emit('pending_messages_delivered', {
+          count: undeliveredMessages.length
+        });
+        
+        logger.info(`✅ Delivered ${undeliveredMessages.length} pending messages to user ${userId}`);
+      }
+    } catch (error) {
+      logger.error(`Error delivering pending messages to user ${userId}:`, error);
+    }
 
     // Notify all contacts that user is online
     const contacts = await presenceService.getUserContacts(userId);

@@ -6,6 +6,8 @@ const Chat = require('./chat.model');
 const ChatMember = require('./chatMember.model');
 const Message = require('./message.model');
 const MessageStatus = require('./messageStatus.model');
+const CorporateContact = require('./corporateContact.model');
+const UserContact = require('./userContact.model');
 
 const db = {
   Sequelize,
@@ -14,7 +16,9 @@ const db = {
   Chat: Chat(sequelize),
   ChatMember: ChatMember(sequelize),
   Message: Message(sequelize),
-  MessageStatus: MessageStatus(sequelize)
+  MessageStatus: MessageStatus(sequelize),
+  CorporateContact: CorporateContact(sequelize),
+  UserContact: UserContact(sequelize)
 };
 
 // Call associate methods for all models

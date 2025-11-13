@@ -3,6 +3,7 @@ const { Op } = require('sequelize');
 
 /**
  * Get all corporate contacts (company directory)
+ * Now includes is_on_synapse flag to indicate if contact is registered
  */
 async function getAllCorporateContacts() {
   const contacts = await CorporateContact.findAll({
@@ -11,7 +12,30 @@ async function getAllCorporateContacts() {
     order: [['name', 'ASC']]
   });
 
-  return contacts;
+  // Check which contacts are registered on Synapse (exist in users table)
+  const phoneNumbers = contacts.map(c => c.phone_number);
+  
+  const registeredUsers = await User.findAll({
+    where: {
+      phone_number: { [Op.in]: phoneNumbers },
+      is_verified: true // Only verified users
+    },
+    attributes: ['phone_number', 'id']
+  });
+
+  // Create a map of phone numbers to user IDs for quick lookup
+  const registeredPhoneMap = new Map(
+    registeredUsers.map(user => [user.phone_number, user.id])
+  );
+
+  // Add is_on_synapse flag and synapse_user_id to each contact
+  const contactsWithSynapseStatus = contacts.map(contact => ({
+    ...contact.toJSON(),
+    is_on_synapse: registeredPhoneMap.has(contact.phone_number),
+    synapse_user_id: registeredPhoneMap.get(contact.phone_number) || null
+  }));
+
+  return contactsWithSynapseStatus;
 }
 
 /**
@@ -68,6 +92,7 @@ async function matchPhoneNumbers(phoneNumbers) {
 
 /**
  * Get user's added contacts (from user_contacts table)
+ * Only returns contacts who are registered on Synapse
  */
 async function getUserContacts(userId) {
   const userContacts = await UserContact.findAll({
@@ -80,21 +105,75 @@ async function getUserContacts(userId) {
     order: [['added_at', 'DESC']]
   });
 
-  return userContacts.map(uc => ({
+  // Filter to only include contacts who are on Synapse
+  const contactsData = userContacts.map(uc => ({
     id: uc.id,
     added_at: uc.added_at,
+    corporate_contact_id: uc.corporate_contact_id,
     ...uc.corporateContact.toJSON()
   }));
+
+  // Get phone numbers to check against users table
+  const phoneNumbers = contactsData.map(c => c.phone_number);
+  
+  const registeredUsers = await User.findAll({
+    where: {
+      phone_number: { [Op.in]: phoneNumbers },
+      is_verified: true
+    },
+    attributes: ['phone_number', 'id', 'name', 'profile_pic', 'about', 'is_online', 'last_seen']
+  });
+
+  // Create map for quick lookup
+  const userMap = new Map(
+    registeredUsers.map(user => [user.phone_number, user])
+  );
+
+  // Only return contacts who are on Synapse
+  const synapseContacts = contactsData
+    .filter(contact => userMap.has(contact.phone_number))
+    .map(contact => {
+      const synapseUser = userMap.get(contact.phone_number);
+      return {
+        id: synapseUser.id, // Use Synapse user ID
+        corporate_contact_id: contact.corporate_contact_id,
+        name: synapseUser.name || contact.name, // Prefer user's registered name
+        phone_number: contact.phone_number,
+        email: contact.email,
+        department: contact.department,
+        job_title: contact.job_title,
+        profile_pic: synapseUser.profile_pic || contact.profile_pic,
+        about: synapseUser.about,
+        is_online: synapseUser.is_online,
+        last_seen: synapseUser.last_seen,
+        added_at: contact.added_at
+      };
+    });
+
+  return synapseContacts;
 }
 
 /**
  * Add corporate contact to user's contact list
+ * Only allows adding contacts who are registered on Synapse
  */
 async function addContactToUser(userId, corporateContactId) {
   // Check if corporate contact exists
   const corporateContact = await CorporateContact.findByPk(corporateContactId);
   if (!corporateContact) {
     throw new Error('Corporate contact not found');
+  }
+
+  // Check if this contact is registered on Synapse
+  const synapseUser = await User.findOne({
+    where: {
+      phone_number: corporateContact.phone_number,
+      is_verified: true
+    }
+  });
+
+  if (!synapseUser) {
+    throw new Error('This contact is not on Synapse yet');
   }
 
   // Check if already added

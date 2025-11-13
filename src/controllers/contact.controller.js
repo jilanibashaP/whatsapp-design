@@ -78,6 +78,9 @@ async function addContact(req, res) {
     if (error.message === 'Corporate contact not found') {
       return errorResponse(res, error.message, 404);
     }
+    if (error.message === 'This contact is not on Synapse yet') {
+      return errorResponse(res, error.message, 400);
+    }
     return errorResponse(res, 'Failed to add contact', 500);
   }
 }

@@ -23,6 +23,26 @@ const createGroupChat = async (userId, { name, icon = null, members, group_descr
 };
 
 const createOrGetPrivateChat = async (userId, otherUserId) => {
+  // Validate that both users exist and are verified
+  const [currentUser, otherUser] = await Promise.all([
+    db.User.findOne({
+      where: { id: userId, is_verified: true },
+      attributes: ['id', 'name', 'phone_number']
+    }),
+    db.User.findOne({
+      where: { id: otherUserId, is_verified: true },
+      attributes: ['id', 'name', 'phone_number']
+    })
+  ]);
+
+  if (!currentUser) {
+    throw new Error('Your account is not verified');
+  }
+
+  if (!otherUser) {
+    throw new Error('This user is not on Synapse yet. They need to register first.');
+  }
+
   // Check if a private chat already exists between these users
   // Get all private chats where either user is a member
   const existingChats = await db.Chat.findAll({

@@ -18,12 +18,12 @@ const sendOTP = async (phoneNumber, otp) => {
   // Check SMS_MODE environment variable (or fall back to NODE_ENV)
   const smsMode = process.env.SMS_MODE || process.env.NODE_ENV;
   
-  // In development mode, just log the OTP instead of sending via AWS
-  if (smsMode === 'development') {
-    console.log('📱 [DEV MODE] OTP for', phoneNumber, ':', otp);
-    console.log('✅ OTP logged to console (development mode - not sent via SMS)');
-    return { success: true, messageId: 'dev-mode-' + Date.now() };
-  }
+  // // In development mode, just log the OTP instead of sending via AWS
+  // if (smsMode === 'development') {
+  //   console.log('📱 [DEV MODE] OTP for', phoneNumber, ':', otp);
+  //   console.log('✅ OTP logged to console (development mode - not sent via SMS)');
+  //   return { success: true, messageId: 'dev-mode-' + Date.now() };
+  // }
 
   // Production mode - send via AWS SNS
   try {

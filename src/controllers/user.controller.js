@@ -135,7 +135,7 @@ exports.requestLoginOTP = async (req, res) => {
       otp_attempts: 0
     });
 
-    console.log('✅ Login OTP generated for user:', user.id);
+    console.log('✅ Login OTP generated for user:', user.id, '- OTP:', otp);
 
     // Send OTP via SMS (optional - will fail in dev without AWS credentials)
     try {

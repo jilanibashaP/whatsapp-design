@@ -70,6 +70,18 @@ exports.uploadProfilePicture = async (fileBuffer, originalName, mimeType, userId
 };
 
 /**
+ * Upload message media (images/videos) to S3
+ * @param {Buffer} fileBuffer - File buffer from multer
+ * @param {String} originalName - Original filename
+ * @param {String} mimeType - File MIME type
+ * @param {String} userId - User ID for folder organization
+ * @returns {Promise<String>} - S3 file URL
+ */
+exports.uploadMessageMedia = async (fileBuffer, originalName, mimeType, userId) => {
+  return exports.uploadFile(fileBuffer, originalName, mimeType, 'chat-media', userId);
+};
+
+/**
  * Delete file from S3 bucket
  * @param {String} fileUrl - Full S3 URL of the file to delete
  * @returns {Promise<Boolean>} - Success status

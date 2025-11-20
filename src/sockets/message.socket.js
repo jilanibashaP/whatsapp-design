@@ -50,10 +50,24 @@ function registerMessageHandlers(socket, io) {
           return socket.emit('error', { message: 'Not authenticated' });
         }
 
-        const { chat_id, content, message_type, reply_to } = data;
+        const { chat_id, content, message_type, reply_to, caption } = data;
 
         if (!chat_id || !content) {
           return socket.emit('message_error', { message: 'chat_id and content are required' });
+        }
+
+        // Validate caption - must be string or null/undefined
+        let validCaption = null;
+        if (caption !== undefined && caption !== null) {
+          if (typeof caption === 'string') {
+            validCaption = caption.trim() || null;
+          } else {
+            logger.error(`Invalid caption type: ${typeof caption}`, { caption });
+            return socket.emit('message_error', { 
+              tempId: data.tempId,
+              message: 'Caption must be a string' 
+            });
+          }
         }
 
         // Save message to database
@@ -61,7 +75,8 @@ function registerMessageHandlers(socket, io) {
           chat_id,
           content,
           message_type: message_type || 'text',
-          reply_to
+          reply_to,
+          caption: validCaption
         });
 
         // Send confirmation to sender

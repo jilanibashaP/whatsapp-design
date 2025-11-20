@@ -22,9 +22,11 @@ sequelize.authenticate()
   .then(() => {
     console.log('✓ Database models synchronized');
     
-    server.listen(PORT, () => {
+    // Listen on 0.0.0.0 to allow connections from other devices on the network
+    server.listen(PORT, '0.0.0.0', () => {
       // eslint-disable-next-line no-console
       console.log(`Server running on http://localhost:${PORT}`);
+      console.log(`Network: http://192.168.0.11:${PORT}`);
     });
   })
   .catch(err => {

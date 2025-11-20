@@ -4,7 +4,7 @@ const db = require('../models');
 /**
  * Send a message to a chat
  */
-const sendMessage = async (userId, { chat_id, content, message_type = 'text', reply_to = null }) => {
+const sendMessage = async (userId, { chat_id, content, message_type = 'text', reply_to = null, caption = null }) => {
   // Verify user is a member of the chat
   const membership = await db.ChatMember.findOne({
     where: { chat_id, user_id: userId }
@@ -21,6 +21,7 @@ const sendMessage = async (userId, { chat_id, content, message_type = 'text', re
     content,
     message_type,
     reply_to,
+    caption,
     status: 'sent'
   });
 

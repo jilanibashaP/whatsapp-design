@@ -21,7 +21,27 @@ module.exports = {
     IMAGE: 'image',
     VIDEO: 'video',
     AUDIO: 'audio',
-    FILE: 'file'
+    FILE: 'file' // Documents: PDF, Excel, Word, Text, etc.
+  },
+  SUPPORTED_FILE_TYPES: {
+    DOCUMENTS: {
+      PDF: 'application/pdf',
+      DOC: 'application/msword',
+      DOCX: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      XLS: 'application/vnd.ms-excel',
+      XLSX: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      PPT: 'application/vnd.ms-powerpoint',
+      PPTX: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      TXT: 'text/plain',
+      CSV: 'text/csv',
+      JSON: 'application/json',
+      XML: 'application/xml'
+    },
+    ARCHIVES: {
+      ZIP: 'application/zip',
+      RAR: 'application/x-rar-compressed',
+      SEVEN_ZIP: 'application/x-7z-compressed'
+    }
   },
   MESSAGE_STATUS: {
     SENT: 'sent',

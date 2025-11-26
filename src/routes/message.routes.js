@@ -1,7 +1,7 @@
 const express = require('express');
 const controller = require('../controllers/message.controller');
 const auth = require('../middlewares/auth.middleware');
-const { uploadMedia } = require('../middlewares/upload.middleware');
+const { uploadMedia, uploadAny } = require('../middlewares/upload.middleware');
 
 const router = express.Router();
 
@@ -11,8 +11,8 @@ router.use(auth);
 // IMPORTANT: Specific routes must come BEFORE parameterized routes
 // Otherwise Express will match "unread" or "search" as :chatId
 
-// Upload message media (image/video) - supports single or multiple files
-router.post('/upload-media', uploadMedia.array('media', 10), controller.uploadMedia);
+// Upload message media (images, videos, documents) - supports single or multiple files
+router.post('/upload-media', uploadAny.array('media', 10), controller.uploadMedia);
 
 // Get unread count (must be before /:chatId)
 router.get('/unread/count', controller.getUnreadCount);

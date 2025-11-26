@@ -3,6 +3,43 @@ const s3Service = require('../services/s3.service');
 const { response } = require('../utils/response');
 
 /**
+ * Determine message type from MIME type
+ * @param {String} mimeType - File MIME type
+ * @returns {String} - Message type (image, video, audio, file)
+ */
+const getMessageTypeFromMimeType = (mimeType) => {
+  if (mimeType.startsWith('image/')) return 'image';
+  if (mimeType.startsWith('video/')) return 'video';
+  if (mimeType.startsWith('audio/')) return 'audio';
+  // All other files (PDF, Excel, Word, Text, etc.) are 'file' type
+  return 'file';
+};
+
+/**
+ * Get file extension from MIME type
+ * @param {String} mimeType - File MIME type
+ * @returns {String} - File extension
+ */
+const getExtensionFromMimeType = (mimeType) => {
+  const mimeMap = {
+    'application/pdf': 'pdf',
+    'application/msword': 'doc',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+    'application/vnd.ms-excel': 'xls',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+    'application/vnd.ms-powerpoint': 'ppt',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+    'text/plain': 'txt',
+    'text/csv': 'csv',
+    'application/zip': 'zip',
+    'application/x-rar-compressed': 'rar',
+    'application/json': 'json',
+    'application/xml': 'xml'
+  };
+  return mimeMap[mimeType] || '';
+};
+
+/**
  * Get messages for a specific chat
  * GET /api/messages/:chatId
  */
@@ -95,7 +132,7 @@ exports.searchMessages = async (req, res, next) => {
 };
 
 /**
- * Upload message media (image/video)
+ * Upload message media (images, videos, documents)
  * POST /api/messages/upload-media
  * Supports single or multiple files
  */
@@ -110,9 +147,10 @@ exports.uploadMedia = async (req, res, next) => {
       );
     }
 
-    console.log(`📤 Uploading ${files.length} media file(s):`, {
+    console.log(`📤 Uploading ${files.length} file(s):`, {
       userId,
-      count: files.length
+      count: files.length,
+      types: files.map(f => f.mimetype)
     });
 
     // Upload all files to S3
@@ -127,25 +165,31 @@ exports.uploadMedia = async (req, res, next) => {
 
     const urls = await Promise.all(uploadPromises);
 
-    console.log(`✅ ${urls.length} media file(s) uploaded successfully`);
+    console.log(`✅ ${urls.length} file(s) uploaded successfully`);
 
-    // Return single URL or array based on count
+    // Determine message type for each file
+    const filesWithTypes = files.map((file, index) => ({
+      url: urls[index],
+      type: getMessageTypeFromMimeType(file.mimetype),
+      mimeType: file.mimetype,
+      fileName: file.originalname,
+      size: file.size,
+      extension: getExtensionFromMimeType(file.mimetype) || file.originalname.split('.').pop()
+    }));
+
+    // Return single file or array based on count
     const responseData = files.length === 1 
-      ? {
-          url: urls[0],
-          type: files[0].mimetype.startsWith('image/') ? 'image' : 'video'
-        }
+      ? filesWithTypes[0]
       : {
-          urls: urls,
-          count: urls.length,
-          type: files[0].mimetype.startsWith('image/') ? 'image' : 'video'
+          files: filesWithTypes,
+          count: filesWithTypes.length
         };
 
     res.json(
-      response(responseData, 'Media uploaded successfully')
+      response(responseData, 'File(s) uploaded successfully')
     );
   } catch (error) {
-    console.error('❌ Error uploading message media:', error);
+    console.error('❌ Error uploading files:', error);
     next(error);
   }
 };

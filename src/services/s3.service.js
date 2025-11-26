@@ -70,7 +70,7 @@ exports.uploadProfilePicture = async (fileBuffer, originalName, mimeType, userId
 };
 
 /**
- * Upload message media (images/videos) to S3
+ * Upload message media (images/videos/documents) to S3
  * @param {Buffer} fileBuffer - File buffer from multer
  * @param {String} originalName - Original filename
  * @param {String} mimeType - File MIME type

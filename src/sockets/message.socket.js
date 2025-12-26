@@ -50,10 +50,24 @@ function registerMessageHandlers(socket, io) {
           return socket.emit('error', { message: 'Not authenticated' });
         }
 
-        const { chat_id, content, message_type, reply_to } = data;
+        const { chat_id, content, message_type, reply_to, caption } = data;
 
         if (!chat_id || !content) {
           return socket.emit('message_error', { message: 'chat_id and content are required' });
+        }
+
+        // Validate caption - must be string or null/undefined
+        let validCaption = null;
+        if (caption !== undefined && caption !== null) {
+          if (typeof caption === 'string') {
+            validCaption = caption.trim() || null;
+          } else {
+            logger.error(`Invalid caption type: ${typeof caption}`, { caption });
+            return socket.emit('message_error', { 
+              tempId: data.tempId,
+              message: 'Caption must be a string' 
+            });
+          }
         }
 
         // Save message to database
@@ -61,7 +75,8 @@ function registerMessageHandlers(socket, io) {
           chat_id,
           content,
           message_type: message_type || 'text',
-          reply_to
+          reply_to,
+          caption: validCaption
         });
 
         // Send confirmation to sender
@@ -105,6 +120,14 @@ function registerMessageHandlers(socket, io) {
               'delivered'
             );
             
+            // Notify sender that message was delivered
+            io.to(`user:${socket.userId}`).emit('message_status_updated', {
+              message_id: message.id,
+              status: 'delivered',
+              user_id: recipientUserId,
+              delivered_at: new Date()
+            });
+            
             deliveredCount++;
             logger.info(`Message ${message.id} delivered to online user ${recipientUserId}`);
           } else {
@@ -144,16 +167,38 @@ function registerMessageHandlers(socket, io) {
       }
     });
 
-    // Typing indicator
-    socket.on('typing', (data) => {
+    // Typing indicator - Deliver to personal rooms of chat members
+    socket.on('typing', async (data) => {
       if (!socket.userId) return;
 
       const { chat_id, is_typing } = data;
-      socket.to(`chat:${chat_id}`).emit('user_typing', {
-        chat_id,
-        user_id: socket.userId,
-        is_typing
-      });
+      
+      try {
+        const db = require('../models');
+        const { Op } = require('sequelize');
+        
+        // Get all chat members except the sender
+        const chatMembers = await db.ChatMember.findAll({
+          where: {
+            chat_id,
+            user_id: { [Op.ne]: socket.userId }
+          },
+          attributes: ['user_id']
+        });
+
+        // Deliver typing indicator to each member's personal room
+        chatMembers.forEach(member => {
+          io.to(`user:${member.user_id}`).emit('user_typing', {
+            chat_id,
+            user_id: socket.userId,
+            is_typing
+          });
+        });
+
+        logger.info(`Typing indicator sent to ${chatMembers.length} members in chat ${chat_id}`);
+      } catch (error) {
+        logger.error('Error sending typing indicator:', error.message);
+      }
     });
 
     // Message delivered
@@ -217,6 +262,14 @@ function registerMessageHandlers(socket, io) {
             user_id: socket.userId,
             chat_id
           });
+
+          // Emit event back to the user who marked message as read
+          // This helps update their own chat list
+          io.to(`user:${socket.userId}`).emit('message_read', {
+            message_id,
+            chat_id,
+            user_id: socket.userId
+          });
         }
       } catch (error) {
         logger.error('Error updating read status:', error.message);
@@ -234,12 +287,20 @@ function registerMessageHandlers(socket, io) {
           return;
         }
 
-        await messageService.bulkUpdateMessageStatus(
+        logger.info(`📖 Received bulk_mark_read: User ${socket.userId}, Chat ${chat_id}, MessageIDs: ${JSON.stringify(message_ids)}`);
+
+        const result = await messageService.bulkUpdateMessageStatus(
           socket.userId,
           chat_id,
           message_ids,
           'read'
         );
+
+        logger.info(`Bulk mark read result: Updated ${result.updated}, Created ${result.created}`);
+
+        // Check current unread count after update
+        const unreadCount = await messageService.getChatUnreadCount(socket.userId, chat_id);
+        logger.info(`📊 Unread count after bulk mark read: ${unreadCount} for user ${socket.userId} in chat ${chat_id}`);
 
         // Get unique sender IDs for these messages
         const db = require('../models');
@@ -258,6 +319,16 @@ function registerMessageHandlers(socket, io) {
             chat_id
           });
         });
+
+        // Emit event back to the user who marked messages as read
+        // This helps update their own chat list
+        io.to(`user:${socket.userId}`).emit('messages_read', {
+          chat_id,
+          message_ids,
+          user_id: socket.userId
+        });
+
+        logger.info(`User ${socket.userId} marked ${message_ids.length} messages as read in chat ${chat_id}`);
       } catch (error) {
         logger.error('Error bulk marking read:', error.message);
       }

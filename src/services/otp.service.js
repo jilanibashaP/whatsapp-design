@@ -15,26 +15,16 @@ const generateOTP = () => {
  * Send OTP via SMS using AWS SNS
  */
 const sendOTP = async (phoneNumber, otp) => {
-  // Check SMS_MODE environment variable (or fall back to NODE_ENV)
-  const smsMode = process.env.SMS_MODE || process.env.NODE_ENV;
-  
-  // In development mode, just log the OTP instead of sending via AWS
-  if (smsMode === 'development') {
-    console.log('📱 [DEV MODE] OTP for', phoneNumber, ':', otp);
-    console.log('✅ OTP logged to console (development mode - not sent via SMS)');
-    return { success: true, messageId: 'dev-mode-' + Date.now() };
-  }
 
   // Production mode - send via AWS SNS
   try {
+    // Use shorter message to avoid carrier truncation
+    const message = `Synapse verification: ${otp}. Valid for 5 min.`;
+    
     const params = {
-      Message: `Your verification code for synapse is: ${otp}. Valid for 5 minutes.`,
+      Message: message,
       PhoneNumber: phoneNumber,
       MessageAttributes: {
-        'AWS.SNS.SMS.SenderID': {
-          DataType: 'String',
-          StringValue: process.env.AWS_SNS_SENDER_ID || 'YourApp'
-        },
         'AWS.SNS.SMS.SMSType': {
           DataType: 'String',
           StringValue: 'Transactional'
@@ -42,10 +32,15 @@ const sendOTP = async (phoneNumber, otp) => {
       }
     };
 
+    console.log("📤 Sending SMS to:", phoneNumber);
+    console.log("📝 Message:", message);
+    console.log("🔢 OTP:", otp);
+    
     const command = new PublishCommand(params);
     const result = await snsClient.send(command);
+
     
-    console.log('✅ OTP sent via AWS SNS:', result.MessageId);
+    console.log("✅ OTP sent successfully. MessageId:", result.MessageId);
     return { success: true, messageId: result.MessageId };
   } catch (error) {
     console.error('❌ Error sending OTP via AWS SNS:', error);

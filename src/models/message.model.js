@@ -14,6 +14,7 @@ module.exports = (sequelize) => {
       defaultValue: 'text'
     },
     content: { type: DataTypes.TEXT, allowNull: false },
+    caption: { type: DataTypes.TEXT, allowNull: true },
     reply_to: { type: DataTypes.INTEGER },
     sent_at: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
     status: {

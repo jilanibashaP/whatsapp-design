@@ -1,4 +1,5 @@
 const messageService = require('../services/message.service');
+const s3Service = require('../services/s3.service');
 const { response } = require('../utils/response');
 
 /**
@@ -89,6 +90,62 @@ exports.searchMessages = async (req, res, next) => {
       }, 'Search completed successfully')
     );
   } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Upload message media (image/video)
+ * POST /api/messages/upload-media
+ * Supports single or multiple files
+ */
+exports.uploadMedia = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const files = req.files || (req.file ? [req.file] : []);
+
+    if (!files || files.length === 0) {
+      return res.status(400).json(
+        response(null, 'No file uploaded', false)
+      );
+    }
+
+    console.log(`📤 Uploading ${files.length} media file(s):`, {
+      userId,
+      count: files.length
+    });
+
+    // Upload all files to S3
+    const uploadPromises = files.map(file => 
+      s3Service.uploadMessageMedia(
+        file.buffer,
+        file.originalname,
+        file.mimetype,
+        userId
+      )
+    );
+
+    const urls = await Promise.all(uploadPromises);
+
+    console.log(`✅ ${urls.length} media file(s) uploaded successfully`);
+
+    // Return single URL or array based on count
+    const responseData = files.length === 1 
+      ? {
+          url: urls[0],
+          type: files[0].mimetype.startsWith('image/') ? 'image' : 'video'
+        }
+      : {
+          urls: urls,
+          count: urls.length,
+          type: files[0].mimetype.startsWith('image/') ? 'image' : 'video'
+        };
+
+    res.json(
+      response(responseData, 'Media uploaded successfully')
+    );
+  } catch (error) {
+    console.error('❌ Error uploading message media:', error);
     next(error);
   }
 };

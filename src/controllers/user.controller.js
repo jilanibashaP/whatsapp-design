@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { User } = require('../models');
 const otpService = require('../services/otp.service');
+const s3Service = require('../services/s3.service');
 
 // Get all users from the database
 exports.getAllUsers = async (req, res) => {
@@ -31,16 +32,66 @@ exports.getAllUsers = async (req, res) => {
 // update the users detals based on the phone number
 exports.updateUserDetails = async (req, res) => {
   try {
-    const { phone_number, name, profile_pic, about, email } = req.body;
+    const { phone_number, name, about, email } = req.body;
+    const profilePicFile = req.file; // Multer file object
+
     if (!phone_number) {
       return res.status(400).json({ message: 'Phone number is required' });
     } 
+    
     const user = await User.findOne({ where: { phone_number } });
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     } 
-    await user.update({ name, profile_pic, about, email });
-    res.json({ message: 'User details updated successfully', user });
+
+    // Prepare update data
+    const updateData = {};
+    if (name !== undefined) updateData.name = name;
+    if (about !== undefined) updateData.about = about;
+    if (email !== undefined) updateData.email = email;
+
+    // Handle profile picture upload to S3
+    const folderName = process.env.AWS_S3_FOLDER_NAME || 'profile-pictures';
+    if (profilePicFile) {
+      try {
+        // Upload to S3 with user ID as filename
+        const profilePicUrl = await s3Service.uploadProfilePicture(
+          profilePicFile.buffer,
+          profilePicFile.originalname,
+          profilePicFile.mimetype,
+          user.id,
+          folderName
+        );
+        
+        updateData.profile_pic = profilePicUrl;
+
+        // Delete old profile picture if it exists
+        if (user.profile_pic) {
+          await s3Service.deleteFile(user.profile_pic);
+        }
+      } catch (uploadError) {
+        console.error('Error uploading profile picture to S3:', uploadError);
+        return res.status(500).json({ 
+          message: 'Failed to upload profile picture',
+          error: uploadError.message 
+        });
+      }
+    }
+
+    // Update user in database
+    await user.update(updateData);
+    
+    res.json({ 
+      message: 'User details updated successfully', 
+      user: {
+        id: user.id,
+        phone_number: user.phone_number,
+        name: user.name,
+        profile_pic: user.profile_pic,
+        about: user.about,
+        email: user.email
+      }
+    });
   } catch (error) {
     console.error('Error updating user details:', error);
     res.status(500).json({ message: 'Server error' });
@@ -84,7 +135,7 @@ exports.requestLoginOTP = async (req, res) => {
       otp_attempts: 0
     });
 
-    console.log('✅ Login OTP generated for user:', user.id);
+    console.log('✅ Login OTP generated for user:', user.id, '- OTP:', otp);
 
     // Send OTP via SMS (optional - will fail in dev without AWS credentials)
     try {

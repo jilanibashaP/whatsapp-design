@@ -1,7 +1,7 @@
 const jwt = require('jsonwebtoken');
 const env = require('../config/env');
 
-const SECRET = env.JWT_SECRET || 'change_this_secret';
+const SECRET = env.JWT_SECRET || 'synapse_graviti';
 
 function signToken(payload, opts = {}) {
   return jwt.sign(payload, SECRET, opts);
